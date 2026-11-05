@@ -27,6 +27,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -96,10 +97,13 @@ public final class RawRecordCacheRepro {
                 final CountedSize counted = settings.caching()
                     ? countedCacheBytes(driver)
                     : new CountedSize(0, "no cache (caching disabled)");
+                final Set<byte[]> held = CacheHolderWalk.sourceRawValuesHeldByCacheEntries(driver);
                 results.add(new WaveResult(
                     nextKey,
                     tracking.liveArrays(),
                     tracking.liveBytes(),
+                    held == null ? -1 : tracking.liveArraysIn(held),
+                    held == null ? -1 : tracking.liveBytesIn(held),
                     counted.bytes(),
                     counted.source(),
                     ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed()));

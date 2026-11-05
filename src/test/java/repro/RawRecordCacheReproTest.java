@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -40,6 +41,33 @@ class RawRecordCacheReproTest {
             last.liveRawArrays() + " of " + last.distinctKeys() + " source values are still reachable");
         assertTrue(last.countedCacheBytes() < 0.02 * last.liveRawBytes(),
             "cache counts " + last.countedCacheBytes() + " bytes while " + last.liveRawBytes() + " raw bytes are reachable");
+    }
+
+    @Test
+    void theSourceValuesStillReachableAreHeldByCacheEntries() {
+        assumeTrue(settings.caching() && !settings.patched() && settings.hasSourceRawRecord());
+        assertTrue(last.heldByCacheEntries() >= 0.95 * last.liveRawArrays(),
+            last.heldByCacheEntries() + " of " + last.liveRawArrays() + " live source values are referenced at "
+                + CacheHolderWalk.PATH);
+    }
+
+    @Test
+    void withoutRawFieldsThereIsNoHolderToWalk() {
+        assumeTrue(!settings.hasSourceRawRecord());
+        assertFalse(last.holderWalkApplies(), "4.0 has no source raw value on the record context");
+    }
+
+    @Test
+    void withoutTheCacheNoEntryHoldsASourceValue() {
+        assumeTrue(!settings.caching());
+        assertEquals(0, last.heldByCacheEntries());
+    }
+
+    @Test
+    void thePatchedCacheHoldsNoMoreThanItsBudget() {
+        assumeTrue(settings.patched());
+        assertTrue(last.heldByCacheEntriesBytes() <= 1.25 * settings.cacheMaxBytes(),
+            last.heldByCacheEntriesBytes() + " bytes held by cache entries against a " + settings.cacheMaxBytes() + "-byte budget");
     }
 
     @Test
