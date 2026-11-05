@@ -1,0 +1,78 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+// -PkafkaVersion=<v>   kafka-streams and kafka-streams-test-utils version (default 4.2.1)
+// -Pcaching=false      materialize the store without the record cache
+// -Ppatched=true       shadow LRUCacheEntry with the fix (4.2.1 only)
+// -PcacheMaxBytes=<n>  statestore.cache.max.bytes (default 128 MiB, 8 MiB when patched)
+// -PvalueSize=<n>      bytes in each source value (default 40000)
+// -PmavenRepo=<url>    resolve from this Maven repository instead of Maven Central
+def kafkaVersion = (findProperty('kafkaVersion') ?: '4.2.1').toString()
+def caching = (findProperty('caching') ?: 'true').toString().toBoolean()
+def patched = (findProperty('patched') ?: 'false').toString().toBoolean()
+def cacheMaxBytes = (findProperty('cacheMaxBytes') ?: (patched ? 8L * 1024 * 1024 : 128L * 1024 * 1024)).toString()
+def valueSize = (findProperty('valueSize') ?: '40000').toString()
+
+if (patched && kafkaVersion != '4.2.1') {
+    throw new GradleException("-Ppatched=true shadows the 4.2.1 LRUCacheEntry; use -PkafkaVersion=4.2.1, not ${kafkaVersion}")
+}
+
+repositories {
+    def mavenRepo = findProperty('mavenRepo')
+    if (mavenRepo) {
+        maven { url = uri(mavenRepo) }
+    } else {
+        mavenCentral()
+    }
+}
+
+dependencies {
+    implementation "org.apache.kafka:kafka-streams:${kafkaVersion}"
+    implementation "org.apache.kafka:kafka-streams-test-utils:${kafkaVersion}"
+    runtimeOnly 'org.slf4j:slf4j-nop:2.0.16'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+}
+
+if (patched) {
+    // Classes in the project's own output come before the kafka-streams jar on the classpath.
+    sourceSets.main.java.srcDir 'src/patched/java'
+}
+
+def reproProperties = [
+    'repro.kafkaVersion'  : kafkaVersion,
+    'repro.caching'       : caching.toString(),
+    'repro.patched'       : patched.toString(),
+    'repro.cacheMaxBytes' : cacheMaxBytes,
+    'repro.valueSize'     : valueSize,
+]
+
+application {
+    mainClass = 'repro.Repro'
+    applicationDefaultJvmArgs = ['-Xmx2g', '--enable-native-access=ALL-UNNAMED']
+}
+
+tasks.named('run') {
+    systemProperties reproProperties
+}
+
+test {
+    useJUnitPlatform()
+    maxHeapSize = '2g'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    systemProperties reproProperties
+    outputs.upToDateWhen { false }
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat = 'full'
+        showStandardStreams = true
+    }
+}
