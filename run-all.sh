@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Runs the four variants' tests and prints one comparison table.
 # MAVEN_REPO=<url> resolves dependencies from that repository instead of Maven Central.
+# HEAP_DUMP=true writes build/heapdumps/<variant>.hprof for each variant.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 repo_args=()
 if [[ -n "${MAVEN_REPO:-}" ]]; then
   repo_args+=("-PmavenRepo=${MAVEN_REPO}")
+fi
+if [[ "${HEAP_DUMP:-false}" == "true" ]]; then
+  repo_args+=("-PheapDump=true")
 fi
 
 variants=(

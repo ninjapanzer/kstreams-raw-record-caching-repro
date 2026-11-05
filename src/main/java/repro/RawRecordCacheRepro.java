@@ -108,6 +108,9 @@ public final class RawRecordCacheRepro {
                     counted.source(),
                     ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed()));
             }
+            if (settings.heapDump()) {
+                HeapDump.write(settings.heapDumpFile());
+            }
         } finally {
             deleteRecursively(stateDir);
         }
